@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dali ETL pipeline</title>
+<style>
+:root{color-scheme:dark;--ink:#e8edf7;--muted:#8694ac;--teal:#67e8cc}*{box-sizing:border-box}body{margin:0;background:#080f1d;color:var(--ink);font-family:'DM Sans',system-ui,sans-serif}main{max-width:1440px;margin:auto;padding:60px 48px 32px}.eyebrow{color:var(--teal);font-size:12px;letter-spacing:3px;font-weight:700}h1{font-family:'Space Grotesk',system-ui,sans-serif;font-size:clamp(32px,4vw,54px);letter-spacing:-2px;margin:16px 0}p.intro{max-width:790px;color:#9caac0;line-height:1.8;font-size:16px;margin:0 0 32px}.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}button,select{background:#142137;color:#dce6f5;border:1px solid #2c3b53;padding:10px 16px;border-radius:8px;font:inherit;font-size:13px;cursor:pointer}button:hover{border-color:var(--teal)}.live{margin-left:auto;color:#92a2ba;font-size:12px;display:flex;align-items:center;gap:8px}.dot{width:6px;height:6px;background:var(--teal);border-radius:100%;box-shadow:0 0 12px var(--teal)}.canvas{background:radial-gradient(ellipse at 49% 50%,#14253a80,transparent 65%),#0b1423;border:1px solid #223047;border-radius:18px;overflow:auto}svg{display:block;width:100%;min-width:850px;height:auto}svg text{font-family:'DM Sans',system-ui,sans-serif}.label{fill:#8595ad;font-size:11px;letter-spacing:2px;font-weight:700}.title{fill:#e8edf7;font-size:20px;font-weight:700}.sub{fill:#91a0b8;font-size:12px}.small{fill:#a7b5ca;font-size:11px}.node{fill:#101e31;stroke:#2b3c56;stroke-width:1.5}.wire{fill:none;stroke:#2a405a;stroke-width:2;stroke-dasharray:5 7}.active{stroke:#67e8cc;filter:drop-shadow(0 0 7px #67e8cc55)}.stage{opacity:.4;transition:opacity .3s}.stage.on{opacity:1}.status{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:20px 0}.step{border-top:2px solid #26364c;padding:14px 6px;color:#697b95;transition:all .3s}.step strong{display:block;font-size:13px;margin-bottom:6px}.step span{font-size:11px;line-height:1.5;display:block}.step.on{border-color:var(--teal);color:#d7eee8}.bottom{display:flex;justify-content:space-between;color:#64758d;font-size:11px;gap:20px;line-height:1.6}.pill{fill:#162c3a;stroke:#2c605c}.note{color:#7a8ca6;font-size:12px;margin-top:22px} @media(max-width:700px){main{padding:30px 18px}h1{letter-spacing:-1px}.status{grid-template-columns:1fr}.step{padding:8px}.bottom{display:block}.live{margin-left:0}}
+
+/* Light palette for embedding on a white documentation page. */
+:root { color-scheme: light; --ink: #172b4d; --muted: #44546f; --teal: #087f70; }
+body { background: #fff; }
+main { padding-top: 28px; }
+p.intro, .live, .note { color: #44546f; }
+button, select { background: #fff; color: #172b4d; border-color: #b7c5d5; }
+.canvas { background: #f7f9fc; border-color: #d5dfeb; }
+.label, .sub, .small { fill: #44546f; }
+label.sub { color: #44546f; }
+.title { fill: #172b4d; }
+.node { fill: #fff; stroke: #b7c5d5; }
+.wire { stroke: #8497ad; }
+.active { stroke: #087f70; filter: drop-shadow(0 0 5px #087f7033); }
+.stage { opacity: .72; }
+.stage.on { opacity: 1; }
+.pill { fill: #e2f5f1; stroke: #86c7bd; }
+#daliGear { fill: #087f70; }
+.step { border-color: #d5dfeb; color: #44546f; }
+.step.on { color: #075f55; }
+.bottom { color: #44546f; }
+
+/* White documentation embed */
+body { background: #fff; font-family: system-ui, sans-serif; }
+main { max-width: 1240px; padding: 20px 20px 12px; }
+h1 { font: 650 clamp(22px, 3vw, 28px)/1.25 system-ui, sans-serif; letter-spacing: -.4px; margin: 0 0 8px; }
+p.intro { font-size: 14px; line-height: 1.55; margin-bottom: 16px; }
+.canvas { background: #fff; border-color: #d5dfeb; border-radius: 8px; }
+#grid circle { opacity: .14; }
+.toolbar { margin-bottom: 12px; }
+.status { margin: 12px 0 4px; }
+.note { margin: 8px 0 0; }
+#biBox, #monthlyPowerBI { fill: #fff6cb; stroke: #eab800; }
+#biBox.active, #monthlyPowerBI.active { stroke: #e6a600; filter: drop-shadow(0 0 5px #ffcc0066); }
+.monthly-wire { stroke-dasharray: 5 7; }
+</style>
+</head>
+<body><main>
+<h1>Dali ETL pipeline</h1>
+<h2>Daily issuer processing</h2>
+<p class="intro">Tokyo, Singapore, Hong Kong and seven additional issuers send flat files in different layouts to <b>Dali (ETL)</b>. Dali ingests and normalizes the records, persists every entry in <b>Oracle</b>, then enriches the stored data and publishes it to <b>Power BI</b> for reporting.</p>
+<div class="toolbar"><button id="play">Pause animation</button><button id="restart">Restart</button><label for="speed" class="sub">Speed</label><select id="speed"><option value="1">1× Normal</option><option value="1.7">1.7× Fast</option><option value="0.6">0.6× Slow</option></select><div class="live"><i class="dot"></i><span id="live">Pipeline animations · running</span></div></div>
+<div class="canvas"><svg viewBox="0 -125 1240 735" role="img" aria-label="Animated diagram: Ten issuers send files to Dali ETL. Dali transforms and persists entries to Oracle, reads the stored data, enriches it, and publishes to Power BI for the Business Team.">
+<defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".65" fill="#30425a" opacity=".4"/></pattern><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10" fill="none" stroke="#45607c" stroke-width="1.5"/></marker></defs>
+<rect y="-125" width="1240" height="735" fill="url(#grid)"/>
+<rect x="402" y="66" width="320" height="526" rx="16" fill="#f0fbf9" stroke="#69b9af" stroke-width="2"/>
+<text x="421" y="92" class="label">DALI SYSTEM</text>
+<text x="42" y="48" class="label">01 / ISSUERS</text><text x="421" y="48" class="label">02 / DALI · ETL</text><text x="1024" y="48" class="label">03 / ANALYTICS</text>
+<path id="issuerPath0" class="wire" style="stroke:#00b8a3;stroke-opacity:.9" d="M248 86 C328 86 346 224 421 224" marker-end="url(#arrow)"/>
+<path id="issuerPath1" class="wire" style="stroke:#2485ff;stroke-opacity:.9" d="M248 133 C328 133 346 233 421 233" marker-end="url(#arrow)"/>
+<path id="issuerPath2" class="wire" style="stroke:#c554e8;stroke-opacity:.9" d="M248 180 C328 180 346 242 421 242" marker-end="url(#arrow)"/>
+<path id="issuerPath3" class="wire" style="stroke:#ff7438;stroke-opacity:.9" d="M248 227 C328 227 346 251 421 251" marker-end="url(#arrow)"/>
+<path id="issuerPath4" class="wire" style="stroke:#795aff;stroke-opacity:.9" d="M248 274 C328 274 346 260 421 260" marker-end="url(#arrow)"/>
+<path id="issuerPath5" class="wire" style="stroke:#80c919;stroke-opacity:.9" d="M248 321 C328 321 346 269 421 269" marker-end="url(#arrow)"/>
+<path id="issuerPath6" class="wire" style="stroke:#f23d82;stroke-opacity:.9" d="M248 368 C328 368 346 278 421 278" marker-end="url(#arrow)"/>
+<path id="issuerPath7" class="wire" style="stroke:#00b6e8;stroke-opacity:.9" d="M248 415 C328 415 346 287 421 287" marker-end="url(#arrow)"/>
+<path id="issuerPath8" class="wire" style="stroke:#f5ad00;stroke-opacity:.9" d="M248 462 C328 462 346 296 421 296" marker-end="url(#arrow)"/>
+<path id="issuerPath9" class="wire" style="stroke:#597aff;stroke-opacity:.9" d="M248 509 C328 509 346 305 421 305" marker-end="url(#arrow)"/>
+<path id="storePath" class="wire" d="M530 356 V442" marker-end="url(#arrow)"/><text x="488" y="405" class="small">WRITE</text>
+<path id="readPath" class="wire" d="M590 442 V356" marker-end="url(#arrow)"/><text x="601" y="405" class="small">READ</text>
+<path id="publishPath" class="wire" d="M701 289 H1024" marker-end="url(#arrow)"/><rect x="723" y="251" width="177" height="29" rx="14" fill="#ffffff"/><text x="811" y="270" text-anchor="middle" class="small">ENRICHED DATASET</text>
+<g><rect x="42" y="67" width="206" height="38" rx="8" class="node" style="stroke:#00b8a3"/><circle cx="57" cy="86" r="4" fill="#00b8a3"/><text x="70" y="91" fill="#172b4d" font-size="14" font-weight="700">Tokyo</text></g>
+<g><rect x="42" y="114" width="206" height="38" rx="8" class="node" style="stroke:#2485ff"/><circle cx="57" cy="133" r="4" fill="#2485ff"/><text x="70" y="138" fill="#172b4d" font-size="14" font-weight="700">Singapore</text></g>
+<g><rect x="42" y="161" width="206" height="38" rx="8" class="node" style="stroke:#c554e8"/><circle cx="57" cy="180" r="4" fill="#c554e8"/><text x="70" y="185" fill="#172b4d" font-size="14" font-weight="700">Hong Kong</text></g>
+<g><rect x="42" y="208" width="206" height="38" rx="8" class="node" style="stroke:#ff7438"/><circle cx="57" cy="227" r="4" fill="#ff7438"/><text x="70" y="232" fill="#172b4d" font-size="14" font-weight="700">SYSCTA</text></g>
+<g><rect x="42" y="255" width="206" height="38" rx="8" class="node" style="stroke:#795aff"/><circle cx="57" cy="274" r="4" fill="#795aff"/><text x="70" y="279" fill="#172b4d" font-size="14" font-weight="700">SUMMIT_MM</text></g>
+<g><rect x="42" y="302" width="206" height="38" rx="8" class="node" style="stroke:#80c919"/><circle cx="57" cy="321" r="4" fill="#80c919"/><text x="70" y="326" fill="#172b4d" font-size="14" font-weight="700">SUMBND</text></g>
+<g><rect x="42" y="349" width="206" height="38" rx="8" class="node" style="stroke:#f23d82"/><circle cx="57" cy="368" r="4" fill="#f23d82"/><text x="70" y="373" fill="#172b4d" font-size="14" font-weight="700">REFCOURS</text></g>
+<g><rect x="42" y="396" width="206" height="38" rx="8" class="node" style="stroke:#00b6e8"/><circle cx="57" cy="415" r="4" fill="#00b6e8"/><text x="70" y="420" fill="#172b4d" font-size="14" font-weight="700">HAVAM</text></g>
+<g><rect x="42" y="443" width="206" height="38" rx="8" class="node" style="stroke:#f5ad00"/><circle cx="57" cy="462" r="4" fill="#f5ad00"/><text x="70" y="467" fill="#172b4d" font-size="14" font-weight="700">ACTIVITI</text></g>
+<g><rect x="42" y="490" width="206" height="38" rx="8" class="node" style="stroke:#597aff"/><circle cx="57" cy="509" r="4" fill="#597aff"/><text x="70" y="514" fill="#172b4d" font-size="14" font-weight="700">MASTER_ACCOUNT</text></g>
+<g transform="translate(65 0)"><rect id="daliBox" x="356" y="155" width="280" height="201" rx="16" class="node"/><rect x="375" y="173" width="36" height="30" rx="7" class="pill"/><g transform="translate(393 188)" aria-label="Dali processing gear"><g id="daliGear" fill="#087f70"><path fill-rule="evenodd" d="M-3-12 H3 L4-8 7-6 11-7 14-2 11 1 11 4 12 7 7 11 4 9 1 10 -1 13 -7 11 -7 7 -10 4 -14 3 -13-3 -9-4 -7-7 -7-11 Z M4 0 A4 4 0 1 0-4 0 A4 4 0 1 0 4 0" transform="scale(.8)"/></g></g><text x="424" y="196" class="title">Dali</text><text x="598" y="195" text-anchor="end" class="sub">ETL</text><path d="M376 218 H616" stroke="#d5dfeb"/>
+<g id="ingestStage" class="stage"><circle cx="383" cy="242" r="4" fill="#087f70"/><text x="397" y="247" class="sub">Ingest &amp; validate layouts</text></g><g id="transformStage" class="stage"><circle cx="383" cy="275" r="4" fill="#6942b5"/><text x="397" y="280" class="sub">Transform to a common schema</text></g><g id="enrichStage" class="stage"><circle cx="383" cy="321" r="4" fill="#f5a900"/><text x="397" y="326" class="sub">Enrich stored records</text></g></g>
+<g id="oracle" transform="translate(437 180)"><rect x="24" y="262" width="200" height="61" rx="10" fill="#fff4f3" stroke="#ef3340" stroke-width="2"/>
+  <g transform="translate(38 276)" stroke="#d92d3a" stroke-width="1.5">
+    <path d="M0 5 V24 C0 31 28 31 28 24 V5" fill="#ffd3d4"/>
+    <path d="M0 14 C0 21 28 21 28 14" fill="none"/>
+    <ellipse cx="14" cy="5" rx="14" ry="5" fill="#ff939a"/>
+  </g>
+  <text x="77" y="287" fill="#a91828" font-size="16" font-weight="700">Oracle</text>
+  <text x="77" y="306" class="small">All ingested entries</text>
+<text id="dbState" x="124" y="345" text-anchor="middle" class="small">Awaiting records</text></g>
+<g><rect id="biBox" x="1024" y="191" width="174" height="166" rx="16" class="node"/><g fill="#ffc400"><rect x="1081" y="230" width="14" height="29" rx="3"/><rect x="1101" y="215" width="14" height="44" rx="3"/><rect x="1121" y="202" width="14" height="57" rx="3"/></g><text x="1111" y="292" text-anchor="middle" class="title">Power BI</text><text x="1111" y="315" text-anchor="middle" class="sub">Reports &amp; dashboards</text><g id="chart" opacity=".2" fill="#ffc400"><rect x="1071" y="334" width="17" height="7" rx="2"/><rect x="1095" y="329" width="17" height="12" rx="2"/><rect x="1119" y="325" width="17" height="16" rx="2"/><rect x="1143" y="321" width="8" height="20" rx="2"/></g></g>
+<path class="wire" d="M1111 357 V395" marker-end="url(#arrow)"/>
+<g aria-label="Business Team views Power BI reports">
+  <rect x="1024" y="396" width="174" height="72" rx="12" fill="#e8f3ff" stroke="#2485ff"/>
+  <circle cx="1051" cy="423" r="6" fill="#2459b3"/>
+  <path d="M1041 440 V438 A10 8 0 0 1 1061 438 V440 Z" fill="#2459b3"/>
+  <text x="1070" y="427" fill="#172b4d" font-size="14" font-weight="700">Business Team</text>
+  <text x="1070" y="447" class="small">Views reports</text>
+</g>
+<path id="dailyTriggerPath" class="wire" d="M621 -28 V155" marker-end="url(#arrow)"/>
+<g transform="translate(-53 0)"><rect id="dailyControlM" x="578" y="-109" width="192" height="81" rx="12" fill="#eef0f3" stroke="#667085" stroke-width="2"/>
+<g transform="translate(609 -87)" fill="none" stroke="#667085" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle r="10"/><path class="control-clock-minute" d="M0 0 V-6"/><path class="control-clock-hour" d="M0 0 V-4"/></g><text x="674" y="-80" text-anchor="middle" class="title">Control-M</text>
+<text x="674" y="-61" text-anchor="middle" class="sub">Scheduling tool</text>
+<text x="674" y="-43" text-anchor="middle" class="small">Daily trigger</text></g>
+<g transform="translate(1024 479)" aria-hidden="true">
+  <g id="dailyViewedReport" opacity="0">
+    <rect width="174" height="54" rx="8" fill="#fff" stroke="#2485ff"/>
+    <text x="12" y="22" class="small" font-weight="700">Daily results</text>
+    <text x="12" y="39" class="small">Report viewed</text>
+    <g fill="#2485ff">
+      <rect x="111" y="30" width="10" height="11" rx="2"/>
+      <rect x="126" y="23" width="10" height="18" rx="2"/>
+      <rect x="141" y="15" width="10" height="26" rx="2"/>
+    </g>
+    <path d="M153 15 l4 4 7 -8" fill="none" stroke="#087f55" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</g>
+<g id="packets"></g>
+</svg></div>
+<div class="status" aria-label="Pipeline stages"><div class="step"><strong>01 · Trigger</strong><span>Control-M starts the daily job.</span></div><div class="step"><strong>02 · Receive</strong><span>Issuer files arrive at Dali.</span></div><div class="step"><strong>03 · Transform</strong><span>Layouts become consistent records.</span></div><div class="step"><strong>04 · Persist</strong><span>All entries are stored in Oracle.</span></div><div class="step"><strong>05 · Enrich</strong><span>Dali reads and enriches stored data.</span></div><div class="step"><strong>06 · Publish</strong><span>Enriched data reaches Power BI.</span></div></div>
+<div class="bottom"><span id="caption" aria-live="polite">Issuers prepare their flat files.</span></div><p class="note">Each issuer’s file follows its matching colored path into Dali.</p>
+<section style="margin-top:32px" aria-labelledby="monthly-heading">
+<h2 id="monthly-heading">Monthly payment processing</h2>
+<p class="intro">Control-M schedules and triggers the monthly process. Dali reads payment data from Oracle, applies ETL to generate monthly payments, splits them into one file per issuer, and sends the files in the required layout to <strong>SUMMIT_FRONT</strong>. SUMMIT_FRONT forwards the files to <strong>SUMMIT_OTC</strong>.</p>
+<p class="intro">SUMMIT_FRONT splits its response files by issuer. It returns <strong>Deal ACK</strong> files for successful payments and <strong>Deal Error</strong> files with the reasons records failed. Dali stores both types of response in <strong>Oracle</strong>, then publishes the monthly payment results to <strong>Power BI</strong>. Power BI refreshes the dashboards and reports that the <strong>Business Team</strong> uses.</p>
+<div class="canvas"><svg viewBox="-70 -125 1450 640" role="img" aria-label="Monthly payments flow from Dali to SUMMIT_FRONT and then SUMMIT_OTC. SUMMIT_FRONT returns Deal ACK and Deal Error files to Dali, which stores both in Oracle and publishes monthly results to Power BI for the Business Team.">
+<rect x="-70" y="-125" width="1450" height="640" fill="url(#grid)"/>
+<defs><marker id="monthlyArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#62748b"/></marker></defs>
+<g transform="translate(565 0)"><rect x="8" y="58" width="232" height="282" rx="14" fill="#f0fbf9" stroke="#69b9af" stroke-width="2"/></g>
+<g transform="translate(565 0)"><text x="24" y="79" class="label">DALI SYSTEM</text></g>
+<g transform="translate(565 0)"><rect id="monthlyGenerate" x="24" y="90" width="170" height="76" rx="10" fill="#fff" stroke="#00b8a3" stroke-width="2"/><g transform="translate(48 118)" aria-label="Dali processing gear"><g id="monthlyGenerateGear" fill="#087f70"><path fill-rule="evenodd" d="M-3-12 H3 L4-8 7-6 11-7 14-2 11 1 11 4 12 7 7 11 4 9 1 10 -1 13 -7 11 -7 7 -10 4 -14 3 -13-3 -9-4 -7-7 -7-11 Z M4 0 A4 4 0 1 0-4 0 A4 4 0 1 0 4 0" transform="scale(.8)"/></g></g><text x="109.0" y="120" text-anchor="middle" class="title">Dali</text><text x="109.0" y="144" text-anchor="middle" class="sub">ETL · Generates payments</text><text x="109" y="158" text-anchor="middle" class="small">Receives Summit responses</text></g>
+<g transform="translate(-263 0)"><rect id="monthlyFront" x="498" y="90" width="190" height="76" rx="10" fill="#fff" stroke="#795aff" stroke-width="2"/><text x="593.0" y="120" text-anchor="middle" class="title">SUMMIT_FRONT</text><text x="593.0" y="144" text-anchor="middle" class="sub">Receives issuer files</text></g>
+<g transform="translate(-780 0)"><rect id="monthlyOtc" x="730" y="90" width="190" height="76" rx="10" fill="#fff" stroke="#c554e8" stroke-width="2"/><text x="825.0" y="120" text-anchor="middle" class="title">SUMMIT_OTC</text><text x="825.0" y="144" text-anchor="middle" class="sub">Validates records</text></g>
+<path class="monthly-wire" id="monthlyForwardPath" d="M235 128 H140" fill="none" stroke="#62748b" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<path class="monthly-wire" id="monthlyAckPath" d="M330 90 V43 H550 V105 H589" fill="none" stroke="#00a66e" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<path class="monthly-wire" id="monthlyErrorPath" d="M330 166 V213 H550 V152 H589" fill="none" stroke="#ef3340" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<path class="monthly-wire" id="monthlyReadPath" d="M625 262 V166" fill="none" stroke="#087f70" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<text x="631" y="198" class="small">Read</text>
+<path class="monthly-wire" id="monthlyStorePath" d="M674 166 V262" fill="none" stroke="#62748b" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<text x="413" y="23" text-anchor="middle" fill="#087f70" font-size="13" font-weight="700">Deal ACK files by issuer · Successful payments</text>
+<text x="413" y="239" text-anchor="middle" fill="#a91828" font-size="13" font-weight="700">Deal Error files by issuer · Failure reasons included</text>
+<g transform="translate(565 0)" aria-label="Oracle database stores Deal ACKs and errors by issuer">
+  <rect id="monthlyOracle" x="24" y="262" width="200" height="61" rx="10" fill="#fff4f3" stroke="#ef3340" stroke-width="2"/>
+  <g transform="translate(38 276)" stroke="#d92d3a" stroke-width="1.5">
+    <path d="M0 5 V24 C0 31 28 31 28 24 V5" fill="#ffd3d4"/>
+    <path d="M0 14 C0 21 28 21 28 14" fill="none"/>
+    <ellipse cx="14" cy="5" rx="14" ry="5" fill="#ff939a"/>
+  </g>
+  <text x="77" y="287" fill="#a91828" font-size="16" font-weight="700">Oracle</text>
+  <text x="77" y="306" class="small">Stores ACKs and errors</text>
+</g>
+<path class="monthly-wire" id="monthlyPublishPath" d="M759 128 H915 V331" fill="none" stroke="#b88000" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<text x="705" y="246" text-anchor="middle" class="small">Persist response data</text>
+<text x="929" y="233" class="small">Monthly payment results</text>
+<g transform="translate(-196 140)"><rect id="monthlyPowerBI" x="1024" y="191" width="174" height="166" rx="16" class="node"/><g fill="#ffc400"><rect x="1081" y="230" width="14" height="29" rx="3"/><rect x="1101" y="215" width="14" height="44" rx="3"/><rect x="1121" y="202" width="14" height="57" rx="3"/></g><text x="1111" y="292" text-anchor="middle" class="title">Power BI</text><text x="1111" y="315" text-anchor="middle" class="sub">Reports &amp; dashboards</text><g id="monthlyChart" opacity=".2" fill="#ffc400"><rect x="1071" y="334" width="17" height="7" rx="2"/><rect x="1095" y="329" width="17" height="12" rx="2"/><rect x="1119" y="325" width="17" height="16" rx="2"/><rect x="1143" y="321" width="8" height="20" rx="2"/></g></g>
+<path class="monthly-wire" id="monthlyReportsPath" d="M1002 395 H1140" fill="none" stroke="#2485ff" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<g transform="translate(116 -37)" aria-label="Business Team views Power BI reports">
+  <rect id="monthlyBusinessReports" x="1024" y="396" width="174" height="72" rx="12" fill="#e8f3ff" stroke="#2485ff"/>
+  <circle cx="1051" cy="423" r="6" fill="#2459b3"/>
+  <path d="M1041 440 V438 A10 8 0 0 1 1061 438 V440 Z" fill="#2459b3"/>
+  <text x="1070" y="427" fill="#172b4d" font-size="14" font-weight="700">Business Team</text>
+  <text x="1070" y="447" class="small">Views reports</text>
+</g>
+<path id="monthlyOutboundPath" d="M589 128 H425" fill="none" stroke="#795aff" stroke-width="2" stroke-dasharray="5 7" marker-end="url(#monthlyArrow)"/>
+<text x="485" y="115" text-anchor="middle" class="small">Issuer payment files</text>
+<path class="monthly-wire" id="monthlyTriggerPath" d="M674 -28 V90" fill="none" stroke="#667085" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<rect id="monthlyControlM" x="578" y="-109" width="192" height="81" rx="12" fill="#eef0f3" stroke="#667085" stroke-width="2"/>
+<g transform="translate(609 -87)" fill="none" stroke="#667085" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle r="10"/><path class="control-clock-minute" d="M0 0 V-6"/><path class="control-clock-hour" d="M0 0 V-4"/></g><text x="674" y="-80" text-anchor="middle" class="title">Control-M</text>
+<text x="674" y="-61" text-anchor="middle" class="sub">Scheduling tool</text>
+<text x="674" y="-43" text-anchor="middle" class="small">Monthly trigger</text>
+<g transform="translate(1140 442)" aria-hidden="true">
+  <g id="monthlyViewedReport" opacity="0">
+    <rect width="174" height="54" rx="8" fill="#fff" stroke="#2485ff"/>
+    <text x="12" y="22" class="small" font-weight="700">Monthly results</text>
+    <text x="12" y="39" class="small">Report viewed</text>
+    <g fill="#2485ff">
+      <rect x="111" y="30" width="10" height="11" rx="2"/>
+      <rect x="126" y="23" width="10" height="18" rx="2"/>
+      <rect x="141" y="15" width="10" height="26" rx="2"/>
+    </g>
+    <path d="M153 15 l4 4 7 -8" fill="none" stroke="#087f55" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</g>
+<g id="monthlyPackets"></g>
+</svg></div>
+<div id="monthlySteps" class="status" aria-label="Monthly payment stages">
+<div class="step"><strong>01 · Trigger</strong><span>Control-M starts the monthly job.</span></div>
+<div class="step"><strong>02 · Read</strong><span>Load payment data from Oracle.</span></div>
+<div class="step"><strong>03 · Transform</strong><span>Build one payment file per issuer.</span></div>
+<div class="step"><strong>04 · Send</strong><span>Send files to SUMMIT_FRONT.</span></div>
+<div class="step"><strong>05 · Forward</strong><span>Forward files to SUMMIT_OTC.</span></div>
+<div class="step"><strong>06 · Receive</strong><span>SUMMIT_FRONT returns ACK and error files.</span></div>
+<div class="step"><strong>07 · Persist</strong><span>Store responses in Oracle.</span></div>
+<div class="step"><strong>08 · Publish</strong><span>Refresh Power BI reports.</span></div>
+<div class="step"><strong>09 · View</strong><span>Business Team views the reports.</span></div>
+</div>
+<p class="note" id="monthlyCaption" aria-live="polite">Control-M triggers the monthly Dali process.</p>
+</section>
+<section style="margin-top:32px" aria-labelledby="liquidity-heading">
+<h2 id="liquidity-heading">Liquidity Collection</h2>
+<p class="intro">Each month, Control-M triggers Dali. Dali reads liquidity data from Oracle, applies ETL, and sends the transformed data to Nat1, which Salesforce maintains. Data chunks illustrate the REST API transfer.</p>
+<div class="canvas"><svg viewBox="0 0 1120 390" role="img" aria-label="Control-M triggers Dali monthly. Dali reads Oracle data, applies ETL, and sends data chunks to Salesforce-maintained Nat1 through a REST API.">
+<rect width="1120" height="390" fill="url(#grid)"/>
+<rect x="280" y="122" width="310" height="247" rx="16" fill="#f0fbf9" stroke="#69b9af" stroke-width="2"/>
+<text x="300" y="147" class="label">DALI SYSTEM</text>
+<path id="liquidityTriggerPath" class="monthly-wire" d="M435 92 V163" fill="none" stroke="#667085" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<path id="liquidityReadPath" class="monthly-wire" d="M435 287 V233" fill="none" stroke="#087f70" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<path id="liquidityApiPath" class="monthly-wire" d="M550 198 H805" fill="none" stroke="#2485ff" stroke-width="2" marker-end="url(#monthlyArrow)"/>
+<text x="677" y="178" text-anchor="middle" class="label">REST API</text>
+<text x="677" y="224" text-anchor="middle" class="sub">Transformed liquidity data</text>
+<text x="450" y="262" class="small">Read liquidity data</text>
+<rect id="liquidityControl" x="340" y="22" width="190" height="70" rx="12" fill="#eef0f3" stroke="#667085" stroke-width="2"/>
+<g transform="translate(370 44)" fill="none" stroke="#667085" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle r="10"/><path class="control-clock-minute" d="M0 0 V-6"/><path class="control-clock-hour" d="M0 0 V-4"/></g><text x="435" y="51" text-anchor="middle" class="title">Control-M</text>
+<text x="435" y="73" text-anchor="middle" class="sub">Monthly scheduler</text>
+<rect id="liquidityDali" x="320" y="163" width="230" height="70" rx="12" fill="#fff" stroke="#00b8a3" stroke-width="2"/>
+<g transform="translate(350 191)" aria-label="Dali processing gear"><g id="liquidityGear" fill="#087f70"><path fill-rule="evenodd" d="M-3-12 H3 L4-8 7-6 11-7 14-2 11 1 11 4 12 7 7 11 4 9 1 10 -1 13 -7 11 -7 7 -10 4 -14 3 -13-3 -9-4 -7-7 -7-11 Z M4 0 A4 4 0 1 0-4 0 A4 4 0 1 0 4 0" transform="scale(.8)"/></g></g><text x="440" y="190" text-anchor="middle" class="title">Dali</text>
+<text x="440" y="215" text-anchor="middle" class="sub">ETL · Transforms liquidity data</text>
+<rect id="liquidityOracle" x="320" y="287" width="230" height="62" rx="10" fill="#fff4f3" stroke="#ef3340" stroke-width="2"/>
+<g transform="translate(340 301)" stroke="#d92d3a" stroke-width="1.5">
+<path d="M0 5 V24 C0 31 28 31 28 24 V5" fill="#ffd3d4"/>
+<ellipse cx="14" cy="5" rx="14" ry="5" fill="#ff939a"/>
+</g>
+<text x="381" y="312" fill="#a91828" font-size="16" font-weight="700">Oracle</text>
+<text x="381" y="332" class="small">Source of liquidity data</text>
+<rect id="liquidityNat" x="805" y="158" width="245" height="80" rx="12" fill="#e8f3ff" stroke="#2485ff" stroke-width="2"/>
+<text x="927" y="191" text-anchor="middle" class="title">Nat1</text>
+<text x="927" y="215" text-anchor="middle" class="sub">Maintained by Salesforce</text>
+<g id="liquidityPackets"></g>
+</svg></div>
+<div id="liquiditySteps" class="status" aria-label="Liquidity Collection stages">
+<div class="step"><strong>01 · Trigger</strong><span>Control-M starts the monthly job.</span></div>
+<div class="step"><strong>02 · Read</strong><span>Dali reads liquidity data from Oracle.</span></div>
+<div class="step"><strong>03 · Transform</strong><span>Dali applies ETL to the source data.</span></div>
+<div class="step"><strong>04 · Send</strong><span>Data chunks travel to Nat1 over the REST API.</span></div>
+<div class="step"><strong>05 · Receive</strong><span>Nat1 receives the transformed data.</span></div>
+</div>
+<p class="note" id="liquidityCaption" aria-live="polite">Control-M triggers the monthly job.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id), ns='http://www.w3.org/2000/svg';
+let playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,time=0,last=null,speed=1,previous=-2;
+const issuerPaths=Array.from({length:10},(_,i)=>$('issuerPath'+i));
+const [storePath,readPath,publishPath]=['storePath','readPath','publishPath'].map($);
+const colors=['#00b8a3', '#2485ff', '#c554e8', '#ff7438', '#795aff', '#80c919', '#f23d82', '#00b6e8', '#f5ad00', '#597aff'];
+function packet(color,file,layer='packets'){let g=document.createElementNS(ns,'g');g.innerHTML=file?`<rect x="-11" y="-15" width="22" height="30" rx="4" fill="${color}"/><path d="M-6 -5 H6 M-6 0 H6 M-6 5 H2" stroke="#142137" stroke-width="1.6"/>`:`<rect x="-6" y="-6" width="12" height="12" rx="3" fill="${color}"/>`;g.style.filter=`drop-shadow(0 0 6px ${color}88)`;$(layer).appendChild(g);return g;}
+const files=colors.map(c=>packet(c,true)),rows=Array.from({length:6},()=>packet('#6942b5',false)),readRows=Array.from({length:4},()=>packet('#f5a900',false)),published=Array.from({length:5},()=>packet('#f5a900',false));
+function move(el,path,p){el.style.display=p>=0&&p<=1?'':'none';if(p>=0&&p<=1){const pt=path.getPointAtLength(path.getTotalLength()*p);el.setAttribute('transform',`translate(${pt.x} ${pt.y})`);}}
+const captions=['Issuer flat files flow into Dali for ingestion and validation.','Dali maps different layouts into a consistent record schema.','Dali persists every ingested entry to Oracle.','Dali retrieves the persisted records and enriches the data.','Dali publishes the enriched dataset to Power BI.'];
+const dailyTrigger = packet('#667085', false);
+dailyTrigger.innerHTML = '<g class="trigger-bolt"><path d="M2 -14 L-9 2 H-2 L-4 14 L10 -4 H3 L6 -14 Z" fill="#ffcc32" stroke="#8a5600" stroke-width="1.5" stroke-linejoin="round"/></g>';
+function render(){let t=time%19800-1800;let stage=t<0?-1:t<3600?0:t<6100?1:t<9200?2:t<12900?3:4;
+renderViewedReport($('dailyViewedReport'), t - 17100);
+const triggerProgress = (t + 1500) / 1200;
+move(dailyTrigger, $('dailyTriggerPath'), triggerProgress);
+dailyTrigger.firstElementChild.setAttribute('transform', 'scale(' + (1 + .22 * Math.sin(triggerProgress * Math.PI * 6)) + ')');
+$('dailyControlM').setAttribute('stroke-width', stage < 0 ? 4 : 2);
+files.forEach((el,i)=>move(el,issuerPaths[i],(t-180-i*145)/2000));rows.forEach((el,i)=>move(el,storePath,(t-6300-i*240)/1200));readRows.forEach((el,i)=>move(el,readPath,(t-9400-i*200)/950));published.forEach((el,i)=>move(el,publishPath,(t-13100-i*300)/2700));
+document.querySelectorAll('.status:not(#monthlySteps):not(#liquiditySteps) .step').forEach((el,i)=>el.classList.toggle('on',i===stage+1));$('ingestStage').classList.toggle('on',stage===0);$('transformStage').classList.toggle('on',stage===1);$('enrichStage').classList.toggle('on',stage===3);$('daliBox').classList.toggle('active',[0,1,3].includes(stage));$('daliGear').setAttribute('transform',`rotate(${time*.09})`);$('daliGear').style.opacity=[0,1,3].includes(stage)?'1':'.45';$('biBox').classList.toggle('active',stage===4);$('chart').setAttribute('opacity',t>15900?'1':'.2');$('dbState').textContent=t<6300?'Awaiting records':t<9000?'Persisting entries…':t<9400?'All entries persisted':t<11300?'Reading stored entries…':'Entries persisted · available for enrichment';if(stage!==previous){$('caption').textContent=stage<0?'Control-M triggers the daily job.':captions[stage];previous=stage;}}
+
+const monthlyStages = [
+  [-1800, 'ControlM', 'Control-M triggers the monthly Dali process.'],
+  [0, 'Oracle', 'Dali reads the monthly payment data from Oracle.'],
+  [1250, 'Generate', 'Dali applies ETL to generate payment files in the required layout.'],
+  [2500, 'Front', 'Dali sends one payment file per issuer to SUMMIT_FRONT.'],
+  [7500, 'Otc', 'SUMMIT_FRONT forwards the issuer files to SUMMIT_OTC for validation.'],
+  [10000, 'Generate', 'SUMMIT_FRONT returns issuer-specific Deal ACK and Deal Error files. Green checks mark Deal ACK files. Red exclamation marks identify Deal Error files.'],
+  [14500, 'Oracle', 'Dali persists both types of response in Oracle.'],
+  [17400, 'PowerBI', 'Dali publishes the monthly payment results to Power BI, which refreshes the dashboards and reports.'],
+  [21400, 'BusinessReports', 'The Business Team can view the refreshed dashboards and reports.']
+].map(([start, node, caption]) => ({start, node: $('monthly' + node), caption}));
+
+const monthlyDealColors = colors.slice(0, 6);
+
+const monthlyTransfers = [
+  ['Trigger', '#667085', -1500, 1200, false],
+  ...Array.from({length: 4}, (_, i) => ['Read', '#087f70', 100 + i * 160, 650, false]),
+  ...monthlyDealColors.map((color, i) => ['Outbound', color, 2550 + i * 145, 1080]),
+  ...monthlyDealColors.map((color, i) => ['Forward', color, 7550 + i * 160, 750]),
+  ...monthlyDealColors.map((color, i) => ['Ack', color, 10100 + i * 170, 2400]),
+  ...monthlyDealColors.slice(3).map((color, i) => ['Error', color, 10500 + i * 170, 2400]),
+  ...Array.from({length: 6}, (_, i) => ['Store', i % 2 ? '#ef3340' : '#00b875', 14600 + i * 220, 1600, false]),
+  ...Array.from({length: 5}, (_, i) => ['Publish', '#f5a900', 17500 + i * 220, 2300, false]),
+  ...Array.from({length: 3}, (_, i) => ['Reports', '#2485ff', 20900 + i * 240, 600, false])
+].map(([route, color, start, duration, isFile = true]) => {
+  const icon = packet(color, isFile, 'monthlyPackets');
+  if (route === 'Trigger') {
+    icon.innerHTML = '<g class="trigger-bolt"><path d="M2 -14 L-9 2 H-2 L-4 14 L10 -4 H3 L6 -14 Z" fill="#ffcc32" stroke="#8a5600" stroke-width="1.5" stroke-linejoin="round"/></g>';
+  }
+  if (route === 'Ack') {
+    icon.insertAdjacentHTML('beforeend', '<circle cx="0" cy="-23" r="7" fill="#087f55" stroke="#fff" stroke-width="1.5"/><path d="M-3 -23 L-1 -21 L3 -25" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>');
+  }
+  if (route === 'Error') {
+    icon.insertAdjacentHTML('beforeend', '<circle cx="0" cy="-23" r="7" fill="#c52238" stroke="#fff" stroke-width="1.5"/><path d="M0 -27 V-23 M0 -20 H.01" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>');
+  }
+  return {icon, path: $('monthly' + route + 'Path'), start, duration};
+});
+
+function renderViewedReport(report, elapsedSinceArrival) {
+  const reveal = Math.max(0, Math.min(1, elapsedSinceArrival / 450));
+  report.setAttribute('opacity', reveal);
+  report.setAttribute('transform', 'translate(0 ' + (1 - reveal) * 8 + ')');
+}
+
+function renderMonthly() {
+  const elapsed = time % 25800 - 1800;
+  let current = monthlyStages[0];
+  for (const stage of monthlyStages) {
+    if (elapsed >= stage.start) current = stage;
+  }
+  for (const stage of monthlyStages) {
+    stage.node.setAttribute('stroke-width', stage.node === current.node ? '4' : '2');
+  }
+  for (const transfer of monthlyTransfers) {
+    const progress = (elapsed - transfer.start) / transfer.duration;
+    move(transfer.icon, transfer.path, progress);
+    const bolt = transfer.icon.querySelector('.trigger-bolt');
+    if (bolt && progress >= 0 && progress <= 1) {
+      bolt.setAttribute('transform', 'scale(' + (1 + .22 * Math.sin(progress * Math.PI * 6)) + ')');
+    }
+  }
+  for (const name of ['Generate']) {
+    const gear = $('monthly' + name + 'Gear');
+    gear.setAttribute('transform', 'rotate(' + elapsed * .09 + ')');
+    gear.style.opacity = current.node.id === 'monthly' + name ? '1' : '.45';
+  }
+  $('monthlyPowerBI').classList.toggle('active', current.node.id === 'monthlyPowerBI');
+  $('monthlyChart').setAttribute('opacity', elapsed >= 20680 ? '1' : '.2');
+  renderViewedReport($('monthlyViewedReport'), elapsed - 22000);
+  $('monthlySteps').querySelectorAll('.step').forEach((step, index) => {
+    step.classList.toggle('on', monthlyStages[index] === current);
+  });
+  const caption = $('monthlyCaption');
+  if (caption.textContent !== current.caption) caption.textContent = current.caption;
+}
+
+
+const liquidityStages = [
+  [0, 'liquidityControl', 'Control-M triggers the monthly job.'],
+  [1700, 'liquidityOracle', 'Dali reads liquidity data from Oracle.'],
+  [3900, 'liquidityDali', 'Dali applies ETL to transform the liquidity data.'],
+  [6200, 'liquidityDali', 'Dali sends transformed data to Nat1 through the REST API.'],
+  [9400, 'liquidityNat', 'Nat1 receives the transformed liquidity data.']
+];
+const liquidityTransfers = [
+  ['Trigger', '#667085', 250, 1250],
+  ...Array.from({length: 4}, (_, i) => ['Read', '#087f70', 1800 + i * 290, 1000]),
+  ...Array.from({length: 6}, (_, i) => ['Api', '#2485ff', 6250 + i * 250, 1750])
+].map(([route, color, start, duration]) => {
+  const icon = packet(color, false, 'liquidityPackets');
+  if (route === 'Trigger') icon.innerHTML = '<g class="trigger-bolt"><path d="M2 -14 L-9 2 H-2 L-4 14 L10 -4 H3 L6 -14 Z" fill="#ffcc32" stroke="#8a5600" stroke-width="1.5" stroke-linejoin="round"/></g>';
+  return {icon, path: $('liquidity' + route + 'Path'), start, duration};
+});
+
+function renderLiquidity() {
+  const elapsed = time % 12000;
+  let current = 0;
+  liquidityStages.forEach(([start], index) => {
+    if (elapsed >= start) current = index;
+  });
+  const [, activeNode, caption] = liquidityStages[current];
+  liquidityStages.forEach(([, node]) => {
+    $(node).setAttribute('stroke-width', node === activeNode ? '4' : '2');
+  });
+  $('liquiditySteps').querySelectorAll('.step').forEach((step, index) => {
+    step.classList.toggle('on', index === current);
+  });
+  for (const {icon, path, start, duration} of liquidityTransfers) {
+    move(icon, path, (elapsed - start) / duration);
+  }
+  const gear = $('liquidityGear');
+  gear.setAttribute('transform', 'rotate(' + elapsed * .09 + ')');
+  gear.style.opacity = activeNode === 'liquidityDali' ? '1' : '.45';
+  if ($('liquidityCaption').textContent !== caption) $('liquidityCaption').textContent = caption;
+}
+
+const controlClockMinutes = document.querySelectorAll('.control-clock-minute');
+const controlClockHours = document.querySelectorAll('.control-clock-hour');
+
+function renderControlClocks() {
+  controlClockMinutes.forEach(hand => hand.setAttribute('transform', 'rotate(' + time * .18 + ')'));
+  controlClockHours.forEach(hand => hand.setAttribute('transform', 'rotate(' + (110 + time * .015) + ')'));
+}
+
+function ui(){$('play').textContent=playing?'Pause animation':'Play animation';$('live').textContent='Pipeline animations · '+(playing?'running':'paused');}
+$('play').onclick=()=>{playing=!playing;ui()};$('restart').onclick=()=>{time=0;previous=-2;render();renderMonthly();renderLiquidity();renderControlClocks()};$('speed').onchange=e=>speed=Number(e.target.value);
+function frame(now){if(last!==null&&playing)time+=Math.min(now-last,100)*speed;last=now;render();renderMonthly();renderLiquidity();renderControlClocks();requestAnimationFrame(frame)}ui();requestAnimationFrame(frame);
+</script></body></html>
